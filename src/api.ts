@@ -23,7 +23,7 @@ function localRecordId(date: string) {
   return `RECORD#${date.replaceAll("-", "")}#${Date.now()}`;
 }
 
-async function authHeaders() {
+async function authHeaders(): Promise<Record<string, string>> {
   if (!API_BASE_URL || !isAuthConfigured) return {};
 
   const token = await getAuthToken();
