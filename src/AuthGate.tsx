@@ -70,11 +70,22 @@ export default function AuthGate({ children }: AuthGateProps) {
         <form className="workout-form" onSubmit={handleSubmit}>
           <label>
             ユーザー名
-            <input value={loginId} autoComplete="username" onChange={(event) => setLoginId(event.target.value)} />
+            <input
+              name="username"
+              value={loginId}
+              autoComplete="username"
+              onChange={(event) => setLoginId(event.target.value)}
+            />
           </label>
           <label>
             パスワード
-            <input type="password" value={password} autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} />
+            <input
+              name="password"
+              type="password"
+              value={password}
+              autoComplete="current-password"
+              onChange={(event) => setPassword(event.target.value)}
+            />
           </label>
           <button type="submit" className="primary-button">
             ログイン
