@@ -90,7 +90,7 @@ VITE_COGNITO_USER_POOL_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
 [infra/template.yaml](./infra/template.yaml) は AWS SAM / CloudFormation テンプレートです。デプロイすると以下が作成されます。
 
 - DynamoDB table: `WorkoutRecords`
-- Lambda function: `backend/lambda_function.py`
+- Lambda function: `backend/lambda_function.py`、runtimeは `python3.13`
 - API Gateway HTTP API
 - Cognito User Pool
 - Cognito User Pool Client
@@ -113,6 +113,12 @@ sam --version
 git --version
 node --version
 npm --version
+```
+
+このテンプレートは Lambda runtime を `python3.13` にしています。CloudShellで `python3 --version` が3.13系であれば、`sam build` はそのPythonを使ってビルドできます。
+
+```bash
+python3 --version
 ```
 
 リージョンが意図通りか確認します。
