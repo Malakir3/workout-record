@@ -9,17 +9,18 @@ from boto3.dynamodb.conditions import Key
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "WorkoutRecords")
 ALLOWED_USERNAME = os.environ.get("ALLOWED_USERNAME", "admin")
+ALLOWED_ORIGINS = {
+    origin.strip()
+    for origin in os.environ.get(
+        "ALLOWED_ORIGINS",
+        "http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+}
 USER_ID = "admin"
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
-
-CORS_HEADERS = {
-    "Access-Control-Allow-Origin": os.environ.get("ALLOWED_ORIGIN", "http://localhost:5173"),
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
-    "Vary": "Origin",
-}
 
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
@@ -40,10 +41,21 @@ class DecimalEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-def response(status_code: int, body: Any):
+def cors_headers(event: dict):
+    origin = (event.get("headers") or {}).get("origin") or (event.get("headers") or {}).get("Origin")
+    allowed_origin = origin if origin in ALLOWED_ORIGINS else next(iter(ALLOWED_ORIGINS))
+    return {
+        "Access-Control-Allow-Origin": allowed_origin,
+        "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+        "Vary": "Origin",
+    }
+
+
+def response(status_code: int, body: Any, event: dict):
     return {
         "statusCode": status_code,
-        "headers": {**CORS_HEADERS, **SECURITY_HEADERS, "Content-Type": "application/json"},
+        "headers": {**cors_headers(event), **SECURITY_HEADERS, "Content-Type": "application/json"},
         "body": json.dumps(body, ensure_ascii=False, cls=DecimalEncoder),
     }
 
@@ -116,10 +128,10 @@ def create_record(event: dict):
     }
 
     table.put_item(Item=item)
-    return response(201, item)
+    return response(201, item, event)
 
 
-def list_records():
+def list_records(event: dict):
     result = table.query(KeyConditionExpression=Key("userId").eq(USER_ID))
     items = result.get("Items", [])
 
@@ -131,16 +143,16 @@ def list_records():
         items.extend(result.get("Items", []))
 
     items.sort(key=lambda item: (item["date"], item.get("createdAt", "")), reverse=True)
-    return response(200, items)
+    return response(200, items, event)
 
 
 def delete_record(event: dict):
     record_id = (event.get("pathParameters") or {}).get("recordId")
     if not record_id:
-        return response(400, {"message": "recordId is required"})
+        return response(400, {"message": "recordId is required"}, event)
 
     table.delete_item(Key={"userId": USER_ID, "recordId": record_id})
-    return response(200, {"recordId": record_id})
+    return response(200, {"recordId": record_id}, event)
 
 
 def lambda_handler(event, context):
@@ -148,17 +160,17 @@ def lambda_handler(event, context):
 
     try:
         if method == "OPTIONS":
-            return response(200, {"ok": True})
+            return response(200, {"ok": True}, event)
         if not is_allowed_user(event):
-            return response(403, {"message": "Forbidden"})
+            return response(403, {"message": "Forbidden"}, event)
         if method == "POST" and path == "/records":
             return create_record(event)
         if method == "GET" and path == "/records":
-            return list_records()
+            return list_records(event)
         if method == "DELETE" and path.startswith("/records/"):
             return delete_record(event)
-        return response(404, {"message": "Not found"})
+        return response(404, {"message": "Not found"}, event)
     except ValueError as exc:
-        return response(400, {"message": str(exc)})
+        return response(400, {"message": str(exc)}, event)
     except Exception:
-        return response(500, {"message": "Internal server error"})
+        return response(500, {"message": "Internal server error"}, event)

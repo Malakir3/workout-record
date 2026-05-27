@@ -139,15 +139,15 @@ function WorkoutApp({ signOut }: { signOut: () => Promise<void> }) {
             <legend>基本情報</legend>
             <label>
               日付
-              <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
+              <input name="date" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
             </label>
             <label>
               種目
-              <input type="text" value={exercise} onChange={(event) => setExercise(event.target.value)} />
+              <input name="exercise" type="text" value={exercise} onChange={(event) => setExercise(event.target.value)} />
             </label>
             <label>
               重量 (kg)
-              <input type="number" min="0" step="0.5" value={weight} onChange={(event) => setWeight(event.target.value)} />
+              <input name="weight" type="number" min="0" step="0.5" value={weight} onChange={(event) => setWeight(event.target.value)} />
             </label>
           </fieldset>
 
@@ -169,6 +169,7 @@ function WorkoutApp({ signOut }: { signOut: () => Promise<void> }) {
                   <input
                     ref={index === reps.length - 1 ? latestSetInput : undefined}
                     className="reps-input"
+                    name={`reps-${index + 1}`}
                     type="number"
                     min="0"
                     placeholder="例: 8"

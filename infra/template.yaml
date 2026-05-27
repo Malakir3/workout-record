@@ -3,10 +3,10 @@ Transform: AWS::Serverless-2016-10-31
 Description: Personal workout record API with Lambda, HTTP API, and DynamoDB.
 
 Parameters:
-  AllowedOrigin:
-    Type: String
+  AllowedOrigins:
+    Type: CommaDelimitedList
     Default: "http://localhost:5173"
-    Description: Exact frontend origin. Set this to the Amplify domain in production.
+    Description: Comma-separated frontend origins allowed by CORS.
   AdminUsername:
     Type: String
     Default: "admin"
@@ -82,8 +82,7 @@ Resources:
                 - !Ref WorkoutUserPoolClient
             IdentitySource: "$request.header.Authorization"
       CorsConfiguration:
-        AllowOrigins:
-          - !Ref AllowedOrigin
+        AllowOrigins: !Ref AllowedOrigins
         AllowHeaders:
           - Content-Type
           - Authorization
@@ -101,7 +100,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref WorkoutRecordsTable
-          ALLOWED_ORIGIN: !Ref AllowedOrigin
+          ALLOWED_ORIGINS: !Join [",", !Ref AllowedOrigins]
           ALLOWED_USERNAME: !Ref AdminUsername
       Policies:
         - DynamoDBCrudPolicy:
