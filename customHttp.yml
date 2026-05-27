@@ -1,0 +1,15 @@
+customHeaders:
+  - pattern: "**/*"
+    headers:
+      - key: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+      - key: X-Content-Type-Options
+        value: nosniff
+      - key: X-Frame-Options
+        value: DENY
+      - key: Referrer-Policy
+        value: no-referrer
+      - key: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=()
+      - key: Content-Security-Policy
+        value: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://*.execute-api.*.amazonaws.com https://cognito-idp.*.amazonaws.com; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'

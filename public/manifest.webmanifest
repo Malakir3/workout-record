@@ -1,0 +1,17 @@
+{
+  "name": "筋トレ記録",
+  "short_name": "筋トレ",
+  "description": "マルチセット対応の個人用筋トレ記録PWA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#120504",
+  "theme_color": "#ff2a1f",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

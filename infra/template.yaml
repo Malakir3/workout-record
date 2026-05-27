@@ -1,0 +1,141 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Personal workout record API with Lambda, HTTP API, and DynamoDB.
+
+Parameters:
+  AllowedOrigin:
+    Type: String
+    Default: "http://localhost:5173"
+    Description: Exact frontend origin. Set this to the Amplify domain in production.
+  AdminUsername:
+    Type: String
+    Default: "admin"
+    Description: The only Cognito username allowed to access workout records.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 10
+    MemorySize: 128
+
+Resources:
+  WorkoutUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: WorkoutRecordsUsers
+      UsernameConfiguration:
+        CaseSensitive: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+
+  WorkoutUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: WorkoutRecordsWebClient
+      UserPoolId: !Ref WorkoutUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  WorkoutRecordsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: WorkoutRecords
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: recordId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: recordId
+          KeyType: RANGE
+
+  WorkoutApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        DefaultAuthorizer: CognitoJwtAuthorizer
+        Authorizers:
+          CognitoJwtAuthorizer:
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${WorkoutUserPool}"
+              audience:
+                - !Ref WorkoutUserPoolClient
+            IdentitySource: "$request.header.Authorization"
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - DELETE
+          - OPTIONS
+
+  WorkoutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/
+      Handler: lambda_function.lambda_handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref WorkoutRecordsTable
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+          ALLOWED_USERNAME: !Ref AdminUsername
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkoutRecordsTable
+      Events:
+        GetRecords:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WorkoutApi
+            Path: /records
+            Method: GET
+        CreateRecord:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WorkoutApi
+            Path: /records
+            Method: POST
+        DeleteRecord:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WorkoutApi
+            Path: /records/{recordId}
+            Method: DELETE
+
+Outputs:
+  ApiUrl:
+    Description: HTTP API endpoint
+    Value: !Sub "https://${WorkoutApi}.execute-api.${AWS::Region}.amazonaws.com"
+  TableName:
+    Description: DynamoDB table name
+    Value: !Ref WorkoutRecordsTable
+  CognitoUserPoolId:
+    Description: Cognito user pool ID
+    Value: !Ref WorkoutUserPool
+  CognitoUserPoolClientId:
+    Description: Cognito app client ID
+    Value: !Ref WorkoutUserPoolClient
