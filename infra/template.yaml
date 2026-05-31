@@ -138,7 +138,7 @@ Resources:
           Statement:
             - Effect: Allow
               Action:
-                - cognito-idp:ListWebAuthnCredentials
+                - cognito-idp:AdminListWebAuthnCredentials
               Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
 
   CognitoPreAuthFunctionPermission:
