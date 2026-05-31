@@ -1,5 +1,5 @@
 import { FormEvent, ReactElement, useEffect, useState } from "react";
-import { getSignedInUsername, isAuthConfigured, signInWithPassword, signOutCurrentUser } from "./auth";
+import { getSignedInUsername, isAuthConfigured, signInWithPassword, signOutCurrentUser, signInWithPasskey, isPasskeySupported } from "./auth";
 
 type AuthGateProps = {
   children: (session: { username: string; signOut: () => Promise<void> }) => ReactElement;
@@ -35,7 +35,27 @@ export default function AuthGate({ children }: AuthGateProps) {
       setPassword("");
       setMessage("");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "ログインに失敗しました。");
+      const errMsg = error instanceof Error ? error.message : "ログインに失敗しました。";
+      if (errMsg.includes("PasskeyAuthenticationRequired") || errMsg.includes("パスキー")) {
+        setMessage("このアカウントにはパスキーが登録されています。パスキーでログインしてください。");
+      } else {
+        setMessage(errMsg);
+      }
+    }
+  }
+
+  async function handlePasskeySignIn() {
+    if (!loginId.trim()) {
+      setMessage("パスキーでログインするにはユーザー名を入力してください。");
+      return;
+    }
+    setMessage("パスキーでサインインしています...");
+    try {
+      await signInWithPasskey(loginId.trim());
+      setUsername(await getSignedInUsername());
+      setMessage("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "パスキーログインに失敗しました。");
     }
   }
 
@@ -87,9 +107,21 @@ export default function AuthGate({ children }: AuthGateProps) {
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
-          <button type="submit" className="primary-button">
-            ログイン
-          </button>
+          <div style={{ display: "grid", gap: "10px" }}>
+            <button type="submit" className="primary-button">
+              ログイン (パスワード)
+            </button>
+            {isPasskeySupported() && (
+              <button
+                type="button"
+                className="primary-button"
+                style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid var(--line)" }}
+                onClick={handlePasskeySignIn}
+              >
+                🔑 パスキーでログイン
+              </button>
+            )}
+          </div>
           {message && <p className="status-message">{message}</p>}
         </form>
       </section>

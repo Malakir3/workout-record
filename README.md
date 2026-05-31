@@ -2,6 +2,13 @@
 
 個人専用のマルチセット対応筋トレ記録アプリです。フロントエンドは React/Vite、バックエンドは AWS Lambda + API Gateway HTTP API + DynamoDB のサーバーレス構成です。
 
+## AWS 構成図
+
+![AWS Architecture](./public/aws-architecture.png)
+
+> [!TIP]
+> 構成図の編集を行う場合は、[docs/aws-architecture.drawio](./docs/aws-architecture.drawio) を [Draw.io (Diagrams.net)](https://app.diagrams.net/) にインポートすることで再編集が可能です。
+
 ## セキュリティ方針
 
 公開時は Cognito User Pool のログインを必須にし、API Gateway HTTP API の JWT Authorizer で `Authorization: Bearer <id token>` を検証します。

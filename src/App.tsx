@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createRecord, deleteRecord, fetchRecords } from "./api";
 import AuthGate from "./AuthGate";
 import type { WorkoutRecord } from "./types";
+import { deletePasskey, isPasskeySupported, listPasskeys, registerPasskey } from "./auth";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -43,15 +44,23 @@ function WorkoutApp({ signOut }: { signOut: () => Promise<void> }) {
   });
   const [exercise, setExercise] = useState("ベンチプレス");
   const [weight, setWeight] = useState("60");
-  const [reps, setReps] = useState<string[]>(["10", "8", ""]);
+  const [reps, setReps] = useState<string[]>(["", "", ""]);
   const [records, setRecords] = useState<WorkoutRecord[]>([]);
   const [status, setStatus] = useState("");
+  const [passkeys, setPasskeys] = useState<any[]>([]);
+  const [passkeySupported, setPasskeySupported] = useState(false);
   const latestSetInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchRecords()
       .then(setRecords)
       .catch((error: Error) => setStatus(error.message));
+
+    const supported = isPasskeySupported();
+    setPasskeySupported(supported);
+    if (supported) {
+      loadPasskeys();
+    }
   }, []);
 
   useEffect(() => {
@@ -61,6 +70,57 @@ function WorkoutApp({ signOut }: { signOut: () => Promise<void> }) {
 
   const trainedDates = useMemo(() => new Set(records.map((record) => record.date)), [records]);
   const { leadingBlanks, days } = getMonthDays(calendarMonth.getFullYear(), calendarMonth.getMonth());
+
+  const exerciseList = useMemo(() => {
+    const list = new Set(records.map((r) => r.exercise));
+    return Array.from(list);
+  }, [records]);
+
+  const lastWeights = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of records) {
+      if (!map.has(r.exercise)) {
+        map.set(r.exercise, r.weight);
+      }
+    }
+    return map;
+  }, [records]);
+
+  const suggestedWeight = useMemo(() => {
+    return lastWeights.get(exercise.trim());
+  }, [exercise, lastWeights]);
+
+  async function loadPasskeys() {
+    try {
+      const keys = await listPasskeys();
+      setPasskeys(keys);
+    } catch {
+      // Ignored in local mode
+    }
+  }
+
+  async function handleRegisterPasskey() {
+    setStatus("パスキーを登録しています...");
+    try {
+      await registerPasskey();
+      setStatus("パスキーを登録しました。");
+      await loadPasskeys();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "パスキーの登録に失敗しました");
+    }
+  }
+
+  async function handleDeletePasskey(credentialId: string) {
+    if (!window.confirm("このパスキーを本当に削除しますか？")) return;
+    setStatus("パスキーを削除しています...");
+    try {
+      await deletePasskey(credentialId);
+      setStatus("パスキーを削除しました。");
+      await loadPasskeys();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "パスキーの削除に失敗しました");
+    }
+  }
 
   function addSet() {
     setReps((current) => [...current, ""]);
@@ -89,21 +149,26 @@ function WorkoutApp({ signOut }: { signOut: () => Promise<void> }) {
         reps: numericReps
       });
       setRecords((current) => [saved, ...current].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)));
-      setStatus("記録しました。");
+      setStatus(`${exercise.trim()}を登録しました。`);
+      setReps(["", "", ""]);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "記録の追加に失敗しました");
     }
   }
 
-  async function handleDelete(recordId: string) {
+  async function handleDelete(record: WorkoutRecord) {
+    if (!window.confirm(`「${record.exercise}」の記録を本当に削除しますか？`)) {
+      return;
+    }
     try {
-      await deleteRecord(recordId);
-      setRecords((current) => current.filter((record) => record.recordId !== recordId));
-      setStatus("削除しました。");
+      await deleteRecord(record.recordId);
+      setRecords((current) => current.filter((r) => r.recordId !== record.recordId));
+      setStatus(`${record.exercise}の記録を削除しました。`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "削除に失敗しました");
     }
   }
+
 
   function moveMonth(amount: number) {
     setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1));
@@ -122,10 +187,28 @@ function WorkoutApp({ signOut }: { signOut: () => Promise<void> }) {
           <span />
         </div>
         <h1>筋トレ記録</h1>
-        <p>セットごとの回数だけをすばやく残そう</p>
-        <button type="button" className="logout-button" onClick={signOut}>
-          ログアウト
-        </button>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "8px" }}>
+          <button type="button" className="logout-button" onClick={signOut}>
+            ログアウト
+          </button>
+          {passkeySupported && (
+            <button type="button" className="logout-button" style={{ borderColor: "rgba(255, 255, 255, 0.2)" }} onClick={handleRegisterPasskey}>
+              🔑 パスキー登録
+            </button>
+          )}
+        </div>
+        {passkeys.length > 0 && (
+          <div className="passkey-list" style={{ marginTop: "12px", width: "100%", maxWidth: "320px" }}>
+            {passkeys.map((key, i) => (
+              <div key={key.credentialId} className="passkey-item" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <span>🔑 デバイス #{i + 1}</span>
+                <button type="button" onClick={() => handleDeletePasskey(key.credentialId)}>
+                  [削除]
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </header>
 
       <section className="panel log-panel" aria-labelledby="log-title">
@@ -143,10 +226,31 @@ function WorkoutApp({ signOut }: { signOut: () => Promise<void> }) {
             </label>
             <label>
               種目
-              <input name="exercise" type="text" value={exercise} onChange={(event) => setExercise(event.target.value)} />
+              <input
+                name="exercise"
+                type="text"
+                value={exercise}
+                onChange={(event) => setExercise(event.target.value)}
+                list="exercise-options"
+                autoComplete="off"
+              />
+              <datalist id="exercise-options">
+                {exerciseList.map((ex) => (
+                  <option key={ex} value={ex} />
+                ))}
+              </datalist>
             </label>
             <label>
               重量 (kg)
+              {suggestedWeight !== undefined && (
+                <span
+                  className="suggested-weight-badge"
+                  onClick={() => setWeight(String(suggestedWeight))}
+                  title="クリックして前回の重量を入力"
+                >
+                  参考: {formatWeight(suggestedWeight)}kg
+                </span>
+              )}
               <input name="weight" type="number" min="0" step="0.5" value={weight} onChange={(event) => setWeight(event.target.value)} />
             </label>
           </fieldset>
@@ -155,7 +259,6 @@ function WorkoutApp({ signOut }: { signOut: () => Promise<void> }) {
             <div className="set-entry-heading">
               <div>
                 <h3>セット別の回数</h3>
-                <p>基本情報は固定したまま、各セットの回数だけ入力</p>
               </div>
               <button type="button" className="ghost-button" onClick={addSet}>
                 セット追加
@@ -252,7 +355,7 @@ function WorkoutApp({ signOut }: { signOut: () => Promise<void> }) {
                 <p>{formatJapaneseDate(record.date)}</p>
               </div>
               <strong>{recordSummary(record)}</strong>
-              <button className="trash-button" type="button" aria-label={`${record.exercise}の記録を削除`} onClick={() => handleDelete(record.recordId)}>
+              <button className="trash-button" type="button" aria-label={`${record.exercise}の記録を削除`} onClick={() => handleDelete(record)}>
                 <span />
               </button>
             </article>
