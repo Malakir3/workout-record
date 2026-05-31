@@ -6,7 +6,8 @@ import {
   signOut,
   associateWebAuthnCredential,
   listWebAuthnCredentials,
-  deleteWebAuthnCredential
+  deleteWebAuthnCredential,
+  updateUserAttributes
 } from "aws-amplify/auth";
 
 const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
@@ -57,20 +58,43 @@ export async function signInWithPasskey(username: string) {
       }
     }
   });
+  if (result.isSignedIn) {
+    try {
+      await syncPasskeyRegistrationStatus();
+    } catch {
+      // Non-fatal: PreAuth reads custom:has_passkey on the next password attempt.
+    }
+  }
   return result;
+}
+
+async function syncHasPasskeyAttribute(hasPasskey: boolean) {
+  if (!isAuthConfigured) return;
+  await updateUserAttributes({
+    userAttributes: {
+      "custom:has_passkey": hasPasskey ? "true" : "false"
+    }
+  });
+}
+
+export async function syncPasskeyRegistrationStatus() {
+  const result = await listWebAuthnCredentials();
+  await syncHasPasskeyAttribute(result.credentials.length > 0);
+  return result.credentials;
 }
 
 export async function registerPasskey() {
   await associateWebAuthnCredential();
+  await syncHasPasskeyAttribute(true);
 }
 
 export async function listPasskeys() {
-  const result = await listWebAuthnCredentials();
-  return result.credentials;
+  return syncPasskeyRegistrationStatus();
 }
 
 export async function deletePasskey(credentialId: string) {
   await deleteWebAuthnCredential({ credentialId });
+  await syncPasskeyRegistrationStatus();
 }
 
 export function isPasskeySupported() {

@@ -34,6 +34,10 @@ Resources:
           RequireUppercase: true
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
+      Schema:
+        - Name: has_passkey
+          AttributeDataType: String
+          Mutable: true
       LambdaConfig:
         PreAuthentication: !GetAtt CognitoPreAuthFunction.Arn
 
@@ -47,6 +51,10 @@ Resources:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_AUTH
+      WriteAttributes:
+        - custom:has_passkey
+      ReadAttributes:
+        - custom:has_passkey
       PreventUserExistenceErrors: ENABLED
       AccessTokenValidity: 60
       IdTokenValidity: 60
@@ -138,7 +146,7 @@ Resources:
           Statement:
             - Effect: Allow
               Action:
-                - cognito-idp:AdminListWebAuthnCredentials
+                - cognito-idp:AdminGetUser
               Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
 
   CognitoPreAuthFunctionPermission:

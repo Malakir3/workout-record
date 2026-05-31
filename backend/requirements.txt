@@ -1,2 +1,1 @@
-# Pin boto3 to a version that includes admin_list_web_authn_credentials (added ~Nov 2024)
 boto3>=1.35.0
